@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+venv/
+env/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IDE specific files
+.vscode/
+.idea/
+
+# Large data files (if you don't want to version control them)
+recipe_index.faiss
+data/
+
+# Logs
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db
