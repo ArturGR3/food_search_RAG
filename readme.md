@@ -33,9 +33,9 @@ To run this project locally, follow these steps:
 
 ## Data
 
-The recipe data and embeddings are stored in `data/recipe_embeddings.pkl`.
+The recipe data with images are store in `recipes.csv`
+The embeddings are stored in `embeddings.npy`.
 The FAISS index for similarity search is stored in `recipe_index.faiss`.
-Images for the recipes are stored in the `Food Images` directory.
 
 ## License
 
