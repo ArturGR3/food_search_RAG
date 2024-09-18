@@ -21,7 +21,7 @@ def recommend(query, session_id, llm_factory):
     # Get recommendations using the adjusted query
     recommendations = get_recommendations(preprocessed_query.adjusted_query)
     
-    # Filter out recipes containing excluded ingredients (assuming each recipe has an 'Ingredients' field)
+    # Filter out recipes containing excluded ingredients
     filtered_recommendations = [
         recipe for recipe in recommendations 
         if not any(ingredient.lower() in recipe['Ingredients'].lower() for ingredient in preprocessed_query.excluded_ingredients)
@@ -47,12 +47,12 @@ def create_recipe_component():
         title = gr.Markdown()
         image = gr.Image(type="filepath", label="")
         with gr.Row():
-            ingredients_btn = gr.Button("Ingredients")
-            instructions_btn = gr.Button("Instructions")
-        details = gr.Markdown()
+            ingredients_btn = gr.Button("Ingredients", scale=1)
+            instructions_btn = gr.Button("Instructions", scale=1)
+        details = gr.Markdown(visible=True)
         with gr.Row():
-            thumbs_up = gr.Button("👍 Like")
-            thumbs_down = gr.Button("👎 Dislike")
+            thumbs_up = gr.Button("👍", scale=1)
+            thumbs_down = gr.Button("👎", scale=1)
         feedback_input = gr.Textbox(label="Feedback", visible=False, placeholder="Please provide more details about your feedback...")
     
     return title, image, ingredients_btn, instructions_btn, details, thumbs_up, thumbs_down, feedback_input
@@ -63,8 +63,11 @@ def show_details(recipes, index, detail_type, current_content, session_id):
         new_content = recipes[index][detail_type]
         # Store user click
         store_user_click(session_id, recipe_title, f"View {detail_type}")
-        # Toggle visibility: if current content is the same as new, hide it
-        return "" if current_content.strip() == new_content.strip() else new_content
+        # Toggle visibility: if current content is the same as new, clear it
+        if current_content.strip() == new_content.strip():
+            return ""
+        else:
+            return new_content
     return ""
 
 def handle_positive_feedback(username, recipe_title, session_id):
@@ -94,24 +97,6 @@ def submit_feedback(username, recipe_title, feedback, session_id):
     store_user_click(session_id, recipe_title, "Detailed Feedback")
     update_session_activity(session_id)
     return gr.update(visible=False), f"Thank you for your feedback, {username}!"
-
-def update_recipes(query, session_id):
-    try:
-        recommended_recipes, adjustment_feedback = recommend(query, session_id, llm_factory)
-        if not recommended_recipes:
-            return [""] * 3 + [None] * 3 + [[]] + [adjustment_feedback]
-        
-        titles = [recipe.get('Title', '') for recipe in recommended_recipes[:3]]
-        images = [recipe.get('Image_Path', None) for recipe in recommended_recipes[:3]]
-        
-        # Pad the lists if there are fewer than 3 recipes
-        titles += [""] * (3 - len(titles))
-        images += [None] * (3 - len(images))
-        
-        return titles + images + [recommended_recipes] + [adjustment_feedback]
-    except Exception as e:
-        error_message = f"An error occurred: {str(e)}"
-        return [""] * 3 + [None] * 3 + [[]] + [error_message]
 
 def display_adjustments():
     df = show_recent_query_adjustments()
@@ -146,33 +131,39 @@ def main():
         # Main application section (initially hidden)
         with gr.Column(visible=False) as main_section:
             welcome_msg = gr.Markdown("Welcome!")
-            gr.Markdown("Enter a query to get recipe recommendations with images!")
+            gr.Markdown("Enter a query to get recipe recommendations!")
             
             with gr.Row():
-                query_input = gr.Textbox(lines=2, placeholder="Enter your recipe query here...")
-                submit_btn = gr.Button("Get Recommendations", variant="primary")
+                with gr.Column(scale=3):
+                    query_input = gr.Textbox(lines=2, placeholder="Enter your recipe query here...")
+                    example_queries = gr.Examples(
+                        examples=[
+                            "vegetarian pasta dish with tomatoes",
+                            "spicy chicken curry without nuts",
+                            "chocolate dessert for two, no dairy",
+                            "gluten-free pizza recipe",
+                            "salad with no chicken"
+                        ],
+                        inputs=[query_input],
+                        label="Example Queries"
+                    )
+                with gr.Column(scale=1):
+                    submit_btn = gr.Button("Get Recommendations", variant="primary")
             
-            with gr.Row():
-                recipe1_title, recipe1_img, r1_ing_btn, r1_ins_btn, r1_details, r1_up, r1_down, r1_feedback = create_recipe_component()
-                recipe2_title, recipe2_img, r2_ing_btn, r2_ins_btn, r2_details, r2_up, r2_down, r2_feedback = create_recipe_component()
-                recipe3_title, recipe3_img, r3_ing_btn, r3_ins_btn, r3_details, r3_up, r3_down, r3_feedback = create_recipe_component()
+            adjustment_feedback = gr.Markdown(visible=False)
+            
+            # Recipe components (initially hidden)
+            with gr.Column(visible=False) as recipe_section:
+                with gr.Row():
+                    recipe1_title, recipe1_img, r1_ing_btn, r1_ins_btn, r1_details, r1_up, r1_down, r1_feedback = create_recipe_component()
+                    recipe2_title, recipe2_img, r2_ing_btn, r2_ins_btn, r2_details, r2_up, r2_down, r2_feedback = create_recipe_component()
+                    recipe3_title, recipe3_img, r3_ing_btn, r3_ins_btn, r3_details, r3_up, r3_down, r3_feedback = create_recipe_component()
             
             feedback_text = gr.Markdown()
             
             recipes = gr.State([])
 
-            gr.Examples(
-                examples=[
-                    ["vegetarian pasta dish with tomatoes"],
-                    ["spicy chicken curry without nuts"],
-                    ["chocolate dessert for two, no dairy"],
-                    ["gluten-free pizza recipe"],
-                    ["salad with no chicken"]
-                ],
-                inputs=[query_input]
-            )
-
-            with gr.Accordion("Recent Query Adjustments"):
+            with gr.Accordion("Recent Query Adjustments", open=False):
                 show_adjustments_btn = gr.Button("Show Recent Adjustments")
                 adjustments_output = gr.Markdown()
         
@@ -192,12 +183,36 @@ def main():
             outputs=[login_section, main_section, welcome_msg, username, session_id]
         )
         
-        submit_btn.click(update_recipes, 
-                         inputs=[query_input, session_id], 
-                         outputs=[recipe1_title, recipe2_title, recipe3_title,
-                                  recipe1_img, recipe2_img, recipe3_img, 
-                                  recipes, feedback_text])
-        
+        def update_recipes_and_feedback(query, session_id):
+            recipes, adjustment_feedback = recommend(query, session_id, llm_factory)
+            
+            # Ensure we always have 3 recipes, even if fewer are returned
+            titles = [recipe.get('Title', '') for recipe in recipes[:3]]
+            images = [recipe.get('Image_Path', None) for recipe in recipes[:3]]
+            
+            # Pad the lists if there are fewer than 3 recipes
+            titles += [''] * (3 - len(titles))
+            images += [None] * (3 - len(images))
+            
+            return [
+                titles[0], titles[1], titles[2],  # 3 title outputs
+                images[0], images[1], images[2],  # 3 image outputs
+                recipes,  # State for all recipes
+                gr.update(visible=True, value=adjustment_feedback),  # Adjustment feedback
+                gr.update(visible=True)  # Make recipe section visible
+            ]
+
+        # Update the submit button click event
+        submit_btn.click(
+            update_recipes_and_feedback, 
+            inputs=[query_input, session_id], 
+            outputs=[
+                recipe1_title, recipe2_title, recipe3_title,
+                recipe1_img, recipe2_img, recipe3_img, 
+                recipes, adjustment_feedback, recipe_section
+            ]
+        )
+                
         show_adjustments_btn.click(display_adjustments, outputs=[adjustments_output])
         
         for i, (ing_btn, ins_btn, details, up_btn, down_btn, feedback_input) in enumerate([
