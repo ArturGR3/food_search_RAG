@@ -38,15 +38,18 @@ def recommend_recipes(query, df, embeddings, index, model, top_k=3):
     recommendations = df.iloc[I[0]]
     
     results = []
-    for _, recipe in recommendations.iterrows():
+    for i, (_, recipe) in enumerate(recommendations.iterrows()):
         image_path = os.path.join('data/Food_Images', recipe['Image_Name'] + '.jpg')
         results.append({
             'Title': recipe['Title'],
             'Ingredients': format_ingredients(recipe['Ingredients']),
             'Instructions': recipe['Instructions'],
             'Image_Path': image_path,
-            'cosine_similarity': float(D[0][I[0].tolist().index(_)])
+            'cosine_similarity': 1 - float(D[0][i])  # Convert distance to similarity
         })
+    
+    # Sort results by cosine similarity in descending order
+    results.sort(key=lambda x: x['cosine_similarity'], reverse=True)
     
     return results
 
