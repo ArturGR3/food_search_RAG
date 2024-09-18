@@ -33,7 +33,7 @@ def recommend_recipes(query, df, embeddings, index, model, top_k=3):
     query_vector = model.encode([query])[0].astype('float32')
     query_vector = np.array([query_vector]).astype('float32')
     
-    D, I = index.search(query_vector, top_k)
+    D, I = index.search(query_vector, top_k) # Search for the top_k most similar recipes
     
     recommendations = df.iloc[I[0]]
     

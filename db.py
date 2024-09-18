@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import datetime
 import uuid
 import argparse
+import json
 
 DB_NAME = 'recipe_feedback.db'
 
@@ -19,6 +20,7 @@ def reset_database():
     c.execute("DROP TABLE IF EXISTS user_queries")
     c.execute("DROP TABLE IF EXISTS returned_recipes")
     c.execute("DROP TABLE IF EXISTS user_clicks")
+    c.execute("DROP TABLE IF EXISTS query_adjustments")
     
     conn.commit()
     conn.close()
@@ -73,6 +75,16 @@ def setup_database():
                   session_id TEXT,
                   recipe_title TEXT,
                   click_type TEXT,
+                  timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                  FOREIGN KEY (session_id) REFERENCES user_sessions(session_id))''')
+    
+    # Create query_adjustments table with excluded_ingredients column
+    c.execute('''CREATE TABLE IF NOT EXISTS query_adjustments
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  session_id TEXT,
+                  original_query TEXT,
+                  adjusted_query TEXT,
+                  excluded_ingredients TEXT,
                   timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                   FOREIGN KEY (session_id) REFERENCES user_sessions(session_id))''')
     
@@ -132,6 +144,41 @@ def save_feedback(username, recipe_title, feedback):
               (username, recipe_title, feedback))
     conn.commit()
     conn.close()
+
+def store_query_adjustment(session_id, original_query, adjusted_query, excluded_ingredients):
+    conn = connect_db()
+    c = conn.cursor()
+    c.execute("""
+        INSERT INTO query_adjustments 
+        (session_id, original_query, adjusted_query, excluded_ingredients)
+        VALUES (?, ?, ?, ?)
+    """, (session_id, original_query, adjusted_query, json.dumps(excluded_ingredients)))
+    conn.commit()
+    conn.close()
+    
+def show_recent_query_adjustments(limit=10):
+    conn = connect_db()
+    query = """
+    SELECT original_query, adjusted_query, excluded_ingredients, timestamp
+    FROM query_adjustments
+    ORDER BY timestamp DESC
+    LIMIT ?
+    """
+    df = pd.read_sql_query(query, conn, params=(limit,))
+    conn.close()
+    
+    # Convert the excluded_ingredients from JSON string to list
+    df['excluded_ingredients'] = df['excluded_ingredients'].apply(json.loads)
+    
+    print("Recent Query Adjustments:")
+    for index, row in df.iterrows():
+        print(f"\nTimestamp: {row['timestamp']}")
+        print(f"Original Query: {row['original_query']}")
+        print(f"Adjusted Query: {row['adjusted_query']}")
+        print(f"Excluded Ingredients: {', '.join(row['excluded_ingredients'])}")
+        print("-" * 50)
+    
+    return df
 
 def view_all_feedback():
     conn = connect_db()
@@ -244,10 +291,13 @@ def get_user_clicks(session_id=None):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Database management for Recipe Recommendation System")
     parser.add_argument('--reset', action='store_true', help='Reset the database (drop all tables and recreate)')
+    parser.add_argument('--show-adjustments', action='store_true', help='Show recent query adjustments')
     args = parser.parse_args()
 
     if args.reset:
         reset_database()
+    elif args.show_adjustments:
+        show_recent_query_adjustments()
     else:
         setup_database()
 
