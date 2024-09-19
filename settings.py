@@ -28,6 +28,7 @@ class LlamaSettings(LLMProviderSettings):
 class GroqSettings(LLMProviderSettings):
     api_key: str = os.getenv("GROQ_API_KEY")
     default_model: str = "mixtral-8x7b-32768"
+    streaming: bool = True
 
 class Settings(BaseSettings):
     app_name: str = "GenAI Project Template"

@@ -23,6 +23,7 @@ def reset_database():
     c.execute("DROP TABLE IF EXISTS recommended_recipes")
     c.execute("DROP TABLE IF EXISTS user_clicks")
     c.execute("DROP TABLE IF EXISTS query_adjustments")
+    c.execute("DROP TABLE IF EXISTS bad_image_feedback")
     
     conn.commit()
     conn.close()
@@ -107,6 +108,13 @@ def setup_database():
                   timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                   FOREIGN KEY (session_id) REFERENCES user_sessions(session_id))''')
     
+    # Create bad_image_feedback table
+    c.execute('''CREATE TABLE IF NOT EXISTS bad_image_feedback
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  username TEXT,
+                  recipe_title TEXT,
+                  timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
+    
     conn.commit()
     conn.close()
     print("Database setup complete.")
@@ -124,6 +132,14 @@ def update_session_activity(session_id):
     conn = connect_db()
     c = conn.cursor()
     c.execute("UPDATE user_sessions SET last_activity = CURRENT_TIMESTAMP WHERE session_id = ?", (session_id,))
+    conn.commit()
+    conn.close()
+
+def store_bad_image_feedback(username, recipe_title):
+    conn = connect_db()
+    c = conn.cursor()
+    c.execute("INSERT INTO bad_image_feedback (username, recipe_title) VALUES (?, ?)",
+              (username, recipe_title))
     conn.commit()
     conn.close()
 

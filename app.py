@@ -1,8 +1,8 @@
 import gradio as gr
-from recipe_recommendation import get_recommendations, retrieve_recipes, assess_recipes, combine_relevant_recipes
+from recipe_recommendation import get_recommendations_stream
 from db import (setup_database, create_session, update_session_activity, store_user_query, 
                 store_retrieved_recipes, store_assessed_recipes, store_recommended_recipes,
-                store_user_click, save_feedback, show_recent_query_adjustments, get_query_process_details)
+                store_user_click, save_feedback, show_recent_query_adjustments, get_query_process_details, store_bad_image_feedback)
 from query_preprocessor import preprocess_query, PreprocessedQuery
 from llm_factory import LLMFactory
 
@@ -20,18 +20,16 @@ def recommend(query, session_id, llm_factory):
     update_session_activity(session_id)
     
     # Get recommendations using the adjusted query and excluded ingredients
-    recommendations = get_recommendations(preprocessed_query.adjusted_query, preprocessed_query.excluded_ingredients, llm_factory, n=3)
+    recommendations = list(get_recommendations_stream(preprocessed_query.adjusted_query, preprocessed_query.excluded_ingredients, llm_factory, n=3))
     
-    # Store the recommendations (this assumes get_recommendations returns the full process)
-    if isinstance(recommendations, dict):
-        store_retrieved_recipes(query_id, recommendations.get('retrieved_recipes', []))
-        store_assessed_recipes(query_id, recommendations.get('assessed_recipes', []))
-        store_recommended_recipes(query_id, recommendations.get('recommended_recipes', []))
-        final_recommendations = recommendations.get('recommended_recipes', [])
-    else:
-        # If get_recommendations doesn't return the full process, just store the final recommendations
-        store_recommended_recipes(query_id, recommendations)
-        final_recommendations = recommendations
+    # Store the recommendations
+    retrieved_recipes = next((data for step, data in recommendations if step == "retrieved_recipes"), [])
+    assessed_recipes = next((data for step, data in recommendations if step == "assessed_recipes"), [])
+    recommended_recipes = next((data for step, data in recommendations if step == "recommended_recipes"), [])
+    
+    store_retrieved_recipes(query_id, retrieved_recipes)
+    store_assessed_recipes(query_id, assessed_recipes)
+    store_recommended_recipes(query_id, recommended_recipes)
     
     # Prepare feedback about query adjustments
     adjustment_feedback = f"Adjusted query: {preprocessed_query.adjusted_query}\n\n"
@@ -40,10 +38,10 @@ def recommend(query, session_id, llm_factory):
     if preprocessed_query.excluded_ingredients:
         adjustment_feedback += f"\n\nExcluded ingredients:\n" + "\n".join(f"- {ing}" for ing in preprocessed_query.excluded_ingredients)
     
-    if not final_recommendations:
+    if not recommended_recipes:
         return [], "No matching recipes found. Please try a different query."
     
-    return final_recommendations, adjustment_feedback
+    return recommended_recipes, adjustment_feedback
 
 def create_recipe_component():
     with gr.Column():
@@ -52,13 +50,20 @@ def create_recipe_component():
         with gr.Row():
             ingredients_btn = gr.Button("Ingredients", scale=1)
             instructions_btn = gr.Button("Instructions", scale=1)
+            bad_image_btn = gr.Button("Bad Image", scale=1)
         details = gr.Markdown(visible=True)
         with gr.Row():
             thumbs_up = gr.Button("👍", scale=1)
             thumbs_down = gr.Button("👎", scale=1)
         feedback_input = gr.Textbox(label="Feedback", visible=False, placeholder="Please provide more details about your feedback...")
     
-    return title, image, ingredients_btn, instructions_btn, details, thumbs_up, thumbs_down, feedback_input
+    return title, image, ingredients_btn, instructions_btn, bad_image_btn, details, thumbs_up, thumbs_down, feedback_input
+
+def handle_bad_image(username, recipe_title, session_id):
+    store_bad_image_feedback(username, recipe_title)
+    store_user_click(session_id, recipe_title, "Bad Image")
+    update_session_activity(session_id)
+    return f"Thank you for reporting the bad image for {recipe_title}, {username}. We'll look into it."
 
 def show_details(recipes, index, detail_type, current_content, session_id):
     if index < len(recipes) and recipes[index]:
@@ -111,7 +116,8 @@ def display_adjustments():
         markdown_output += "---\n\n"
     return markdown_output
 
-def update_recipes_and_feedback(query, session_id):
+def update_recipes_and_feedback(query, session_id, llm_model = 'openai'):
+    llm_factory = LLMFactory(llm_model)  # Or whichever provider you prefer
     recipes, adjustment_feedback = recommend(query, session_id, llm_factory)
     
     # Ensure we always have 3 recipes, even if fewer are returned
@@ -130,11 +136,13 @@ def update_recipes_and_feedback(query, session_id):
         gr.update(visible=True)  # Make recipe section visible
     ]
 
+
 def main():
+    llm_model = "openai"
     try:
         setup_database()
         global llm_factory
-        llm_factory = LLMFactory("groq")  # Or whichever provider you prefer
+        llm_factory = LLMFactory(llm_model)  # Or whichever provider you prefer
     except Exception as e:
         print(f"Error during setup: {str(e)}")
         return
@@ -146,8 +154,8 @@ def main():
         # Login section
         with gr.Column(visible=True) as login_section:
             gr.Markdown("# Welcome to the Recipe Recommendation System")
-            username_input = gr.Textbox(label="Please enter your name:")
-            login_button = gr.Button("Start")
+            username_input = gr.Textbox(label="Please enter your name:",  scale=1)
+            login_button = gr.Button("Start",  scale=1)
         
         # Main application section (initially hidden)
         with gr.Column(visible=False) as main_section:
@@ -155,7 +163,7 @@ def main():
             gr.Markdown("Enter a query to get recipe recommendations!")
             
             with gr.Row():
-                query_input = gr.Textbox(lines=1, placeholder="Enter your recipe query here...", scale=3)
+                query_input = gr.Textbox(lines=1, placeholder="Enter your recipe query here...", scale=2)
                 submit_btn = gr.Button("Get Recommendations", variant="primary", scale=1)
             
             example_queries = gr.Examples(
@@ -173,11 +181,11 @@ def main():
             adjustment_feedback = gr.Markdown(visible=False)
             
             # Recipe components (initially hidden)
-            with gr.Column(visible=False) as recipe_section:
-                with gr.Row():
-                    recipe1_title, recipe1_img, r1_ing_btn, r1_ins_btn, r1_details, r1_up, r1_down, r1_feedback = create_recipe_component()
-                    recipe2_title, recipe2_img, r2_ing_btn, r2_ins_btn, r2_details, r2_up, r2_down, r2_feedback = create_recipe_component()
-                    recipe3_title, recipe3_img, r3_ing_btn, r3_ins_btn, r3_details, r3_up, r3_down, r3_feedback = create_recipe_component()
+        with gr.Column(visible=False) as recipe_section:
+            with gr.Row():
+                recipe1_title, recipe1_img, r1_ing_btn, r1_ins_btn, r1_bad_img_btn, r1_details, r1_up, r1_down, r1_feedback = create_recipe_component()
+                recipe2_title, recipe2_img, r2_ing_btn, r2_ins_btn, r2_bad_img_btn, r2_details, r2_up, r2_down, r2_feedback = create_recipe_component()
+                recipe3_title, recipe3_img, r3_ing_btn, r3_ins_btn, r3_bad_img_btn, r3_details, r3_up, r3_down, r3_feedback = create_recipe_component()
             
             feedback_text = gr.Markdown()
             
@@ -201,11 +209,11 @@ def main():
         
         # Update the submit button click event
         submit_btn.click(
-            update_recipes_and_feedback, 
-            inputs=[query_input, session_id], 
+            update_recipes_and_feedback,
+            inputs=[query_input, session_id],
             outputs=[
                 recipe1_title, recipe2_title, recipe3_title,
-                recipe1_img, recipe2_img, recipe3_img, 
+                recipe1_img, recipe2_img, recipe3_img,
                 recipes, adjustment_feedback, recipe_section
             ]
         )
@@ -221,10 +229,10 @@ def main():
             ]
         )
         
-        for i, (ing_btn, ins_btn, details, up_btn, down_btn, feedback_input) in enumerate([
-            (r1_ing_btn, r1_ins_btn, r1_details, r1_up, r1_down, r1_feedback),
-            (r2_ing_btn, r2_ins_btn, r2_details, r2_up, r2_down, r2_feedback),
-            (r3_ing_btn, r3_ins_btn, r3_details, r3_up, r3_down, r3_feedback)
+        for i, (ing_btn, ins_btn, bad_img_btn, details, up_btn, down_btn, feedback_input) in enumerate([
+            (r1_ing_btn, r1_ins_btn, r1_bad_img_btn, r1_details, r1_up, r1_down, r1_feedback),
+            (r2_ing_btn, r2_ins_btn, r2_bad_img_btn, r2_details, r2_up, r2_down, r2_feedback),
+            (r3_ing_btn, r3_ins_btn, r3_bad_img_btn, r3_details, r3_up, r3_down, r3_feedback)
         ]):
             ing_btn.click(
                 lambda recipes, current, session_id, i=i: show_details(recipes, i, "Ingredients", current, session_id), 
@@ -250,6 +258,11 @@ def main():
                 lambda username, feedback, title, session_id, i=i: submit_feedback(username, title, feedback, session_id),
                 inputs=[username, feedback_input, recipe1_title if i == 0 else (recipe2_title if i == 1 else recipe3_title), session_id],
                 outputs=[feedback_input, feedback_text]
+            )
+            bad_img_btn.click(
+                lambda username, title, session_id, i=i: handle_bad_image(username, title, session_id),
+                inputs=[username, recipe1_title if i == 0 else (recipe2_title if i == 1 else recipe3_title), session_id],
+                outputs=[feedback_text]
             )
     
     iface.launch()

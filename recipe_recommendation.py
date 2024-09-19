@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import faiss
 import pickle
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Generator, Tuple
 from sentence_transformers import SentenceTransformer
 import os
 from pydantic import BaseModel, Field
@@ -156,6 +156,23 @@ def get_recommendations(query: str, excluded_ingredients: List[str], llm_factory
         "assessed_recipes": assessment_result.assessments,
         "recommended_recipes": recommended_recipes
     }
+    
+def get_recommendations_stream(query: str, excluded_ingredients: List[str], llm_factory: LLMFactory, n: int = 3) -> Generator[Tuple[str, Any], None, None]:
+    global df, embeddings, index, model
+    if df is None or embeddings is None or index is None or model is None:
+        initialize()
+    
+    # Step 1: Retrieve recipes using FAISS
+    retrieved_recipes = retrieve_recipes(query, df, embeddings, index, model, top_k=10)
+    yield "retrieved_recipes", retrieved_recipes
+    
+    # Step 2: Assess recipes
+    assessment_result = assess_recipes(query, retrieved_recipes, excluded_ingredients, llm_factory)
+    yield "assessed_recipes", assessment_result.assessments
+    
+    # Step 3: Combine relevant recipes and return n recipes
+    recommended_recipes = combine_relevant_recipes(retrieved_recipes, assessment_result, n)
+    yield "recommended_recipes", recommended_recipes
 
 if __name__ == "__main__":
     # Example usage
