@@ -1,7 +1,8 @@
 import gradio as gr
-from recipe_recommendation import get_recommendations
+from recipe_recommendation import get_recommendations, retrieve_recipes, assess_recipes, combine_relevant_recipes
 from db import (setup_database, create_session, update_session_activity, store_user_query, 
-                store_returned_recipes, store_user_click, save_feedback, show_recent_query_adjustments)
+                store_retrieved_recipes, store_assessed_recipes, store_recommended_recipes,
+                store_user_click, save_feedback, show_recent_query_adjustments, get_query_process_details)
 from query_preprocessor import preprocess_query, PreprocessedQuery
 from llm_factory import LLMFactory
 
@@ -18,20 +19,19 @@ def recommend(query, session_id, llm_factory):
     # Update session activity
     update_session_activity(session_id)
     
-    # Get recommendations using the adjusted query
-    recommendations = get_recommendations(preprocessed_query.adjusted_query)
+    # Get recommendations using the adjusted query and excluded ingredients
+    recommendations = get_recommendations(preprocessed_query.adjusted_query, preprocessed_query.excluded_ingredients, llm_factory, n=3)
     
-    # Filter out recipes containing excluded ingredients
-    filtered_recommendations = [
-        recipe for recipe in recommendations 
-        if not any(ingredient.lower() in recipe['Ingredients'].lower() for ingredient in preprocessed_query.excluded_ingredients)
-    ]
-    
-    # Limit to top 10 recommendations
-    filtered_recommendations = filtered_recommendations[:10]
-    
-    # Store returned recipes
-    store_returned_recipes(session_id, query_id, filtered_recommendations)
+    # Store the recommendations (this assumes get_recommendations returns the full process)
+    if isinstance(recommendations, dict):
+        store_retrieved_recipes(query_id, recommendations.get('retrieved_recipes', []))
+        store_assessed_recipes(query_id, recommendations.get('assessed_recipes', []))
+        store_recommended_recipes(query_id, recommendations.get('recommended_recipes', []))
+        final_recommendations = recommendations.get('recommended_recipes', [])
+    else:
+        # If get_recommendations doesn't return the full process, just store the final recommendations
+        store_recommended_recipes(query_id, recommendations)
+        final_recommendations = recommendations
     
     # Prepare feedback about query adjustments
     adjustment_feedback = f"Adjusted query: {preprocessed_query.adjusted_query}\n\n"
@@ -40,7 +40,10 @@ def recommend(query, session_id, llm_factory):
     if preprocessed_query.excluded_ingredients:
         adjustment_feedback += f"\n\nExcluded ingredients:\n" + "\n".join(f"- {ing}" for ing in preprocessed_query.excluded_ingredients)
     
-    return filtered_recommendations, adjustment_feedback
+    if not final_recommendations:
+        return [], "No matching recipes found. Please try a different query."
+    
+    return final_recommendations, adjustment_feedback
 
 def create_recipe_component():
     with gr.Column():
@@ -107,6 +110,25 @@ def display_adjustments():
         markdown_output += f"**Excluded Ingredients:** {', '.join(row['excluded_ingredients'])}\n\n"
         markdown_output += "---\n\n"
     return markdown_output
+
+def update_recipes_and_feedback(query, session_id):
+    recipes, adjustment_feedback = recommend(query, session_id, llm_factory)
+    
+    # Ensure we always have 3 recipes, even if fewer are returned
+    titles = [recipe.get('Title', '') for recipe in recipes[:3]]
+    images = [recipe.get('Image_Path', None) for recipe in recipes[:3]]
+    
+    # Pad the lists if there are fewer than 3 recipes
+    titles += [''] * (3 - len(titles))
+    images += [None] * (3 - len(images))
+    
+    return [
+        titles[0], titles[1], titles[2],  # 3 title outputs
+        images[0], images[1], images[2],  # 3 image outputs
+        recipes,  # State for all recipes
+        gr.update(visible=True, value=adjustment_feedback),  # Adjustment feedback
+        gr.update(visible=True)  # Make recipe section visible
+    ]
 
 def main():
     try:
@@ -177,25 +199,6 @@ def main():
             outputs=[login_section, main_section, welcome_msg, username, session_id]
         )
         
-        def update_recipes_and_feedback(query, session_id):
-            recipes, adjustment_feedback = recommend(query, session_id, llm_factory)
-            
-            # Ensure we always have 3 recipes, even if fewer are returned
-            titles = [recipe.get('Title', '') for recipe in recipes[:3]]
-            images = [recipe.get('Image_Path', None) for recipe in recipes[:3]]
-            
-            # Pad the lists if there are fewer than 3 recipes
-            titles += [''] * (3 - len(titles))
-            images += [None] * (3 - len(images))
-            
-            return [
-                titles[0], titles[1], titles[2],  # 3 title outputs
-                images[0], images[1], images[2],  # 3 image outputs
-                recipes,  # State for all recipes
-                gr.update(visible=True, value=adjustment_feedback),  # Adjustment feedback
-                gr.update(visible=True)  # Make recipe section visible
-            ]
-
         # Update the submit button click event
         submit_btn.click(
             update_recipes_and_feedback, 

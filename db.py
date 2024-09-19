@@ -18,7 +18,9 @@ def reset_database():
     c.execute("DROP TABLE IF EXISTS user_feedback")
     c.execute("DROP TABLE IF EXISTS user_sessions")
     c.execute("DROP TABLE IF EXISTS user_queries")
-    c.execute("DROP TABLE IF EXISTS returned_recipes")
+    c.execute("DROP TABLE IF EXISTS retrieved_recipes")
+    c.execute("DROP TABLE IF EXISTS assessed_recipes")
+    c.execute("DROP TABLE IF EXISTS recommended_recipes")
     c.execute("DROP TABLE IF EXISTS user_clicks")
     c.execute("DROP TABLE IF EXISTS query_adjustments")
     
@@ -57,16 +59,33 @@ def setup_database():
                   timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                   FOREIGN KEY (session_id) REFERENCES user_sessions(session_id))''')
     
-    # Create returned_recipes table with cosine_similarity column
-    c.execute('''CREATE TABLE IF NOT EXISTS returned_recipes
+    # Create retrieved_recipes table
+    c.execute('''CREATE TABLE IF NOT EXISTS retrieved_recipes
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  session_id TEXT,
+                  query_id INTEGER,
+                  recipe_title TEXT,
+                  cosine_similarity REAL,
+                  timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                  FOREIGN KEY (query_id) REFERENCES user_queries(id))''')
+    
+    # Create assessed_recipes table
+    c.execute('''CREATE TABLE IF NOT EXISTS assessed_recipes
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  query_id INTEGER,
+                  recipe_title TEXT,
+                  is_relevant BOOLEAN,
+                  relevance_reason TEXT,
+                  relevance_score INTEGER,
+                  timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                  FOREIGN KEY (query_id) REFERENCES user_queries(id))''')
+    
+    # Create recommended_recipes table
+    c.execute('''CREATE TABLE IF NOT EXISTS recommended_recipes
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   query_id INTEGER,
                   recipe_title TEXT,
                   position INTEGER,
-                  cosine_similarity REAL,
                   timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                  FOREIGN KEY (session_id) REFERENCES user_sessions(session_id),
                   FOREIGN KEY (query_id) REFERENCES user_queries(id))''')
     
     # Create user_clicks table
@@ -78,7 +97,7 @@ def setup_database():
                   timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                   FOREIGN KEY (session_id) REFERENCES user_sessions(session_id))''')
     
-    # Create query_adjustments table with excluded_ingredients column
+    # Create query_adjustments table
     c.execute('''CREATE TABLE IF NOT EXISTS query_adjustments
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   session_id TEXT,
@@ -117,15 +136,39 @@ def store_user_query(session_id, query):
     conn.close()
     return query_id
 
-def store_returned_recipes(session_id, query_id, recipes):
+def store_retrieved_recipes(query_id, recipes):
+    conn = connect_db()
+    c = conn.cursor()
+    for recipe in recipes:
+        c.execute("""
+            INSERT INTO retrieved_recipes 
+            (query_id, recipe_title, cosine_similarity) 
+            VALUES (?, ?, ?)
+        """, (query_id, recipe['Title'], recipe['cosine_similarity']))
+    conn.commit()
+    conn.close()
+
+def store_assessed_recipes(query_id, assessments):
+    conn = connect_db()
+    c = conn.cursor()
+    for assessment in assessments:
+        c.execute("""
+            INSERT INTO assessed_recipes 
+            (query_id, recipe_title, is_relevant, relevance_reason, relevance_score) 
+            VALUES (?, ?, ?, ?, ?)
+        """, (query_id, assessment.title, assessment.is_relevant, assessment.reason, assessment.relevance_score))
+    conn.commit()
+    conn.close()
+
+def store_recommended_recipes(query_id, recipes):
     conn = connect_db()
     c = conn.cursor()
     for position, recipe in enumerate(recipes, start=1):
         c.execute("""
-            INSERT INTO returned_recipes 
-            (session_id, query_id, recipe_title, position, cosine_similarity) 
-            VALUES (?, ?, ?, ?, ?)
-        """, (session_id, query_id, recipe['Title'], position, recipe['cosine_similarity']))
+            INSERT INTO recommended_recipes 
+            (query_id, recipe_title, position) 
+            VALUES (?, ?, ?)
+        """, (query_id, recipe['Title'], position))
     conn.commit()
     conn.close()
 
@@ -155,7 +198,7 @@ def store_query_adjustment(session_id, original_query, adjusted_query, excluded_
     """, (session_id, original_query, adjusted_query, json.dumps(excluded_ingredients)))
     conn.commit()
     conn.close()
-    
+
 def show_recent_query_adjustments(limit=10):
     conn = connect_db()
     query = """
@@ -170,15 +213,31 @@ def show_recent_query_adjustments(limit=10):
     # Convert the excluded_ingredients from JSON string to list
     df['excluded_ingredients'] = df['excluded_ingredients'].apply(json.loads)
     
-    print("Recent Query Adjustments:")
-    for index, row in df.iterrows():
-        print(f"\nTimestamp: {row['timestamp']}")
-        print(f"Original Query: {row['original_query']}")
-        print(f"Adjusted Query: {row['adjusted_query']}")
-        print(f"Excluded Ingredients: {', '.join(row['excluded_ingredients'])}")
-        print("-" * 50)
-    
     return df
+
+def get_query_process_details(query_id):
+    conn = connect_db()
+    
+    # Get query details
+    query_df = pd.read_sql_query("SELECT * FROM user_queries WHERE id = ?", conn, params=(query_id,))
+    
+    # Get retrieved recipes
+    retrieved_df = pd.read_sql_query("SELECT * FROM retrieved_recipes WHERE query_id = ?", conn, params=(query_id,))
+    
+    # Get assessed recipes
+    assessed_df = pd.read_sql_query("SELECT * FROM assessed_recipes WHERE query_id = ?", conn, params=(query_id,))
+    
+    # Get recommended recipes
+    recommended_df = pd.read_sql_query("SELECT * FROM recommended_recipes WHERE query_id = ?", conn, params=(query_id,))
+    
+    conn.close()
+    
+    return {
+        "query": query_df.to_dict('records')[0] if not query_df.empty else None,
+        "retrieved_recipes": retrieved_df.to_dict('records'),
+        "assessed_recipes": assessed_df.to_dict('records'),
+        "recommended_recipes": recommended_df.to_dict('records')
+    }
 
 def view_all_feedback():
     conn = connect_db()
@@ -251,30 +310,6 @@ def get_user_queries(session_id=None, username=None):
     conn.close()
     return df
 
-def get_returned_recipes(session_id=None):
-    conn = connect_db()
-    if session_id:
-        query = """
-        SELECT rr.*, uq.query
-        FROM returned_recipes rr
-        JOIN user_queries uq ON rr.query_id = uq.id
-        WHERE rr.session_id = ?
-        ORDER BY rr.timestamp DESC, rr.position ASC
-        """
-        params = (session_id,)
-    else:
-        query = """
-        SELECT rr.*, uq.query
-        FROM returned_recipes rr
-        JOIN user_queries uq ON rr.query_id = uq.id
-        ORDER BY rr.timestamp DESC, rr.position ASC
-        """
-        params = ()
-    
-    df = pd.read_sql_query(query, conn, params=params)
-    conn.close()
-    return df
-
 def get_user_clicks(session_id=None):
     conn = connect_db()
     if session_id:
@@ -297,7 +332,8 @@ if __name__ == "__main__":
     if args.reset:
         reset_database()
     elif args.show_adjustments:
-        show_recent_query_adjustments()
+        adjustments_df = show_recent_query_adjustments()
+        print(adjustments_df)
     else:
         setup_database()
 
@@ -313,8 +349,11 @@ if __name__ == "__main__":
     print("\nUser queries:")
     print(get_user_queries())
 
-    print("\nReturned recipes:")
-    print(get_returned_recipes())
-
     print("\nUser clicks:")
     print(get_user_clicks())
+
+    # Example of retrieving query process details
+    # Replace 1 with an actual query_id from your database
+    process_details = get_query_process_details(1)
+    print("\nQuery Process Details:")
+    print(json.dumps(process_details, indent=2))
