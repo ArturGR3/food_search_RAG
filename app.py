@@ -34,11 +34,11 @@ def recommend(query, session_id, llm_factory):
     store_returned_recipes(session_id, query_id, filtered_recommendations)
     
     # Prepare feedback about query adjustments
-    adjustment_feedback = ""
+    adjustment_feedback = f"Adjusted query: {preprocessed_query.adjusted_query}\n\n"
     if preprocessed_query.adjustments:
-        adjustment_feedback = "Query adjustments made: " + ", ".join(preprocessed_query.adjustments)
+        adjustment_feedback += "Adjustments made:\n" + "\n".join(f"- {adj}" for adj in preprocessed_query.adjustments)
     if preprocessed_query.excluded_ingredients:
-        adjustment_feedback += f"\nExcluded ingredients: {', '.join(preprocessed_query.excluded_ingredients)}"
+        adjustment_feedback += f"\n\nExcluded ingredients:\n" + "\n".join(f"- {ing}" for ing in preprocessed_query.excluded_ingredients)
     
     return filtered_recommendations, adjustment_feedback
 
@@ -70,27 +70,26 @@ def show_details(recipes, index, detail_type, current_content, session_id):
             return new_content
     return ""
 
-def handle_positive_feedback(username, recipe_title, session_id):
-    save_feedback(username, recipe_title, "Liked")
-    store_user_click(session_id, recipe_title, "Like")
+def handle_feedback(username, recipe_title, session_id, is_positive):
+    feedback_type = "Liked" if is_positive else "Disliked"
+    save_feedback(username, recipe_title, feedback_type)
+    store_user_click(session_id, recipe_title, feedback_type)
     update_session_activity(session_id)
-    return (
-        gr.update(value="👍 Liked!", variant="secondary"),
-        gr.update(value="👎 Dislike"),
-        gr.update(visible=False),
-        f"Thank you for your positive feedback, {username}!"
-    )
-
-def handle_negative_feedback(username, recipe_title, session_id):
-    save_feedback(username, recipe_title, "Disliked")
-    store_user_click(session_id, recipe_title, "Dislike")
-    update_session_activity(session_id)
-    return (
-        gr.update(value="👍 Like"),
-        gr.update(value="👎 Disliked!", variant="secondary"),
-        gr.update(visible=True),
-        f"We're sorry to hear that, {username}. Please provide more details below:"
-    )
+    
+    if is_positive:
+        return (
+            gr.update(value="👍 Liked!", variant="secondary"),
+            gr.update(value="👎"),
+            gr.update(visible=False),
+            f"Thank you for your positive feedback, {username}!"
+        )
+    else:
+        return (
+            gr.update(value="👍"),
+            gr.update(value="👎 Disliked!", variant="secondary"),
+            gr.update(visible=True),
+            f"We're sorry to hear that, {username}. Please provide more details below:"
+        )
 
 def submit_feedback(username, recipe_title, feedback, session_id):
     save_feedback(username, recipe_title, feedback)
@@ -134,21 +133,20 @@ def main():
             gr.Markdown("Enter a query to get recipe recommendations!")
             
             with gr.Row():
-                with gr.Column(scale=3):
-                    query_input = gr.Textbox(lines=2, placeholder="Enter your recipe query here...")
-                    example_queries = gr.Examples(
-                        examples=[
-                            "vegetarian pasta dish with tomatoes",
-                            "spicy chicken curry without nuts",
-                            "chocolate dessert for two, no dairy",
-                            "gluten-free pizza recipe",
-                            "salad with no chicken"
-                        ],
-                        inputs=[query_input],
-                        label="Example Queries"
-                    )
-                with gr.Column(scale=1):
-                    submit_btn = gr.Button("Get Recommendations", variant="primary")
+                query_input = gr.Textbox(lines=1, placeholder="Enter your recipe query here...", scale=3)
+                submit_btn = gr.Button("Get Recommendations", variant="primary", scale=1)
+            
+            example_queries = gr.Examples(
+                examples=[
+                    "vegetarian pasta dish with tomatoes",
+                    "spicy chicken curry without nuts",
+                    "chocolate dessert for two, no dairy",
+                    "gluten-free pizza recipe",
+                    "salad with no chicken"
+                ],
+                inputs=[query_input],
+                label="Example Queries"
+            )
             
             adjustment_feedback = gr.Markdown(visible=False)
             
@@ -163,10 +161,6 @@ def main():
             
             recipes = gr.State([])
 
-            with gr.Accordion("Recent Query Adjustments", open=False):
-                show_adjustments_btn = gr.Button("Show Recent Adjustments")
-                adjustments_output = gr.Markdown()
-        
         def on_login(name):
             new_session_id = create_session(name)
             return (
@@ -212,8 +206,17 @@ def main():
                 recipes, adjustment_feedback, recipe_section
             ]
         )
-                
-        show_adjustments_btn.click(display_adjustments, outputs=[adjustments_output])
+        
+        # Add event for pressing Enter in the query input
+        query_input.submit(
+            update_recipes_and_feedback,
+            inputs=[query_input, session_id],
+            outputs=[
+                recipe1_title, recipe2_title, recipe3_title,
+                recipe1_img, recipe2_img, recipe3_img, 
+                recipes, adjustment_feedback, recipe_section
+            ]
+        )
         
         for i, (ing_btn, ins_btn, details, up_btn, down_btn, feedback_input) in enumerate([
             (r1_ing_btn, r1_ins_btn, r1_details, r1_up, r1_down, r1_feedback),
@@ -231,12 +234,12 @@ def main():
                 outputs=[details]
             )
             up_btn.click(
-                lambda username, title, session_id, i=i: handle_positive_feedback(username, title, session_id),
+                lambda username, title, session_id, i=i: handle_feedback(username, title, session_id, True),
                 inputs=[username, recipe1_title if i == 0 else (recipe2_title if i == 1 else recipe3_title), session_id],
                 outputs=[up_btn, down_btn, feedback_input, feedback_text]
             )
             down_btn.click(
-                lambda username, title, session_id, i=i: handle_negative_feedback(username, title, session_id),
+                lambda username, title, session_id, i=i: handle_feedback(username, title, session_id, False),
                 inputs=[username, recipe1_title if i == 0 else (recipe2_title if i == 1 else recipe3_title), session_id],
                 outputs=[up_btn, down_btn, feedback_input, feedback_text]
             )
