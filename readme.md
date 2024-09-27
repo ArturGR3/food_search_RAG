@@ -63,7 +63,7 @@ To evaluate the initial retrieval performance of our system, we generate synthet
    - A semaphore is implemented to limit the number of concurrent API calls, preventing rate limiting issues and ensuring efficient use of resources.
 
 4. Output:
-   - The generated prompts are saved in a CSV file [prompts_dataframe.csv](./data/prompts_dataframe.csv) for further use in evaluating the retrieval system.
+   - The generated prompts are saved in a CSV file `prompts_dataframe.csv` for further use in evaluating the retrieval system.
 
 ## Technology Stack
 
