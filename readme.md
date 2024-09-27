@@ -61,9 +61,27 @@ To evaluate the initial retrieval performance of our system, we generate synthet
 3. Implementation Details:
    - We use **asyncio.gather()** to run multiple API calls concurrently.
    - A semaphore is implemented to limit the number of concurrent API calls, preventing rate limiting issues and ensuring efficient use of resources.
+   - The script supports processing either a sample dataset or the full dataset:
+     - By default, it processes 10 samples and saves the result as `prompts_dataframe_test.csv`.
+     - For the full dataset (1000 samples), use the `--samples 1000` flag, which saves the result as `prompts_dataframe.csv`.
+   - You can specify any number of samples using the `--samples` argument.
 
-4. Output:
-   - The generated prompts are saved in a CSV file `prompts_dataframe.csv` for further use in evaluating the retrieval system.
+4. Usage:
+   - For the default test dataset (10 samples):
+     ```
+     python src/data_preprocessing/ground_truth_generation.py
+     ```
+   - For the full dataset (1000 samples):
+     ```
+     python src/data_preprocessing/ground_truth_generation.py --samples 1000
+     ```
+   - For a custom number of samples:
+     ```
+     python src/data_preprocessing/ground_truth_generation.py --samples <number>
+     ```
+
+5. Output:
+   - The generated prompts are saved in a CSV file (`prompts_dataframe_test.csv` for samples, `prompts_dataframe.csv` for the full dataset) for further use in evaluating the retrieval system.
 
 ## Technology Stack
 

@@ -11,6 +11,7 @@ import time
 import pandas as pd
 from pydantic import BaseModel, Field
 from typing import List
+import argparse
 
 # Add the project root directory to the Python path
 project_root = str(Path(__file__).resolve().parents[2])
@@ -107,16 +108,22 @@ async def generate_and_save_prompts(semaphore: int, data_path: str, output_csv_p
     print(f"Generated prompts for {len(df_prompts)} recipes and saved to {output_csv_path}")
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Generate recipe prompts")
+    parser.add_argument("--samples", type=int, default=10, help="Number of samples to process (default: 10, use 1000 for full dataset)")
+    args = parser.parse_args()
+
     semaphore = 4
     
+    is_full_dataset = args.samples == 1000
+    output_filename = "prompts_dataframe.csv" if is_full_dataset else "prompts_dataframe_test.csv"
+    
     start_time = time.time()
-    await generate_and_save_prompts(
+    asyncio.run(generate_and_save_prompts(
         semaphore,
         f'{project_root}/data/recipes.csv', 
-        f'{project_root}/data/prompts_dataframe_test.csv', 
-        num_recipes=10
-    )
+        f'{project_root}/data/{output_filename}',
+        num_recipes=args.samples
+    ))
     end_time = time.time()
     print(f"Semaphore {semaphore}: Time taken: {end_time - start_time} seconds")
-
 
