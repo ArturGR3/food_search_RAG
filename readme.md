@@ -47,25 +47,23 @@ The data collection and preprocessing steps are handled in two stages:
 
 ### 2. Generating synthetic data to evaluate retrieval methods
 
+To evaluate the initial retrieval performance of our system, we generate synthetic data in the form of user-like prompts for each recipe. This process is handled by the [ground_truth_generation.py](./src/data_preprocessing/ground_truth_generation.py) script.
 
+1. Synthetic Data Generation:
+   - We use **GPT-4-mini**, accessed through the OpenAI API, to generate 5 synthetic user prompts for each recipe.
+   - Each prompt is designed to be a short, natural-sounding query (up to 10 words) that a user might use to search for the recipe.
+   - This approach provides us with a diverse set of potential user inputs to test our retrieval system.
 
+2. Asynchronous Processing with **asyncio**:
+   - We utilize Python's asyncio library to handle concurrent API calls efficiently.
+   - asyncio allows us to run multiple I/O-bound tasks concurrently, significantly speeding up the data generation process.
 
+3. Implementation Details:
+   - We use **asyncio.gather()** to run multiple API calls concurrently.
+   - A semaphore is implemented to limit the number of concurrent API calls, preventing rate limiting issues and ensuring efficient use of resources.
 
-
-
-
-
-
-1. Enter a query describing the kind of recipe you're looking for. For example:
-   - "vegetarian pasta dish with tomatoes"
-   - "spicy chicken curry"
-   - "chocolate dessert for two"
-
-2. The system will return the top 3 recipe recommendations, including:
-   - An image of the dish
-   - The recipe title
-   - A list of ingredients
-   - Cooking instructions
+4. Output:
+   - The generated prompts are saved in a CSV file [prompts_dataframe.csv](./data/prompts_dataframe.csv) for further use in evaluating the retrieval system.
 
 ## Technology Stack
 
