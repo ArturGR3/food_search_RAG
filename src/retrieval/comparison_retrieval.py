@@ -260,13 +260,13 @@ def main(sample_size=10):
     for method, results in metrics.items():
         row = [
             method,
-            f"{results['MRR@1']:.4f}" + (' *' if method == best_methods['MRR@1'] else ''),
-            f"{results['MRR@3']:.4f}" + (' *' if method == best_methods['MRR@3'] else ''),
-            f"{results['MRR@5']:.4f}" + (' *' if method == best_methods['MRR@5'] else ''),
-            f"{results['Recall@1']:.4f}" + (' *' if method == best_methods['Recall@1'] else ''),
-            f"{results['Recall@3']:.4f}" + (' *' if method == best_methods['Recall@3'] else ''),
-            f"{results['Recall@5']:.4f}" + (' *' if method == best_methods['Recall@5'] else ''),
-            f"{results['Retrieval Time']:.4f} s" + (' *' if method == best_methods['Retrieval Time'] else '')
+            f"{results['MRR@1']:.2f}" + (' *' if method == best_methods['MRR@1'] else ''),
+            f"{results['MRR@3']:.2f}" + (' *' if method == best_methods['MRR@3'] else ''),
+            f"{results['MRR@5']:.2f}" + (' *' if method == best_methods['MRR@5'] else ''),
+            f"{results['Recall@1']:.2f}" + (' *' if method == best_methods['Recall@1'] else ''),
+            f"{results['Recall@3']:.2f}" + (' *' if method == best_methods['Recall@3'] else ''),
+            f"{results['Recall@5']:.2f}" + (' *' if method == best_methods['Recall@5'] else ''),
+            f"{results['Retrieval Time']:.2f} s" + (' *' if method == best_methods['Retrieval Time'] else '')
         ]
         table_data.append(row)
 
@@ -274,6 +274,11 @@ def main(sample_size=10):
     headers = ['Method', 'MRR@1', 'MRR@3', 'MRR@5', 'Recall@1', 'Recall@3', 'Recall@5', 'Retrieval Time']
     print(tabulate(table_data, headers=headers, tablefmt='grid'))
     print("\n* indicates the best performing method for each metric")
+    
+    # Save the table as a txt file
+    with open('retrieval_comparison_results.txt', 'w') as f:
+        f.write(tabulate(table_data, headers=headers, tablefmt='grid'))
+        f.write("\n* indicates the best performing method for each metric")
 
 if __name__ == "__main__":
-    main(sample_size=100)
+    main(sample_size=500)

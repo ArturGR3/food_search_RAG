@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import List
-from db import store_query_adjustment
-from llm_factory import LLMFactory
+from src.reporting.db import store_query_adjustment
+from src.utils.llm_factory import LLMFactory
 
 class PreprocessedQuery(BaseModel):
     is_recipe_request: bool = Field(..., description="Whether the query is a valid recipe request")
@@ -52,7 +52,7 @@ def preprocess_query(query: str, llm_factory: LLMFactory, session_id: str) -> Pr
 
 # Example usage (for testing purposes)
 if __name__ == "__main__":
-    from llm_factory import LLMFactory
+    from src.utils.llm_factory import LLMFactory
     
     llm_factory = LLMFactory("groq")  # Or whichever provider you prefer
     

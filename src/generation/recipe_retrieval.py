@@ -6,8 +6,8 @@ import pickle
 from typing import List, Optional, Dict
 from sentence_transformers import SentenceTransformer
 import os
-from llm_factory import LLMFactory
-from settings import get_settings
+from src.utils.llm_factory import LLMFactory
+from src.utils.settings import get_settings
 from pydantic import BaseModel, Field
 
 def load_data_and_index(embeddings_path, index_path):
