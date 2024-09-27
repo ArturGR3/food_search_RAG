@@ -67,18 +67,10 @@ To evaluate the initial retrieval performance of our system, we generate synthet
 
    Usage examples:
    ```bash
-   # Test mode (10 samples)
-   python src/data_preprocessing/ground_truth_generation.py
-
-   # Full dataset (1000 samples)
-   python src/data_preprocessing/ground_truth_generation.py --samples 1000
-
-   # Custom number of samples
-   python src/data_preprocessing/ground_truth_generation.py --samples <number>
+   python src/data_preprocessing/ground_truth_generation.py                    # Test mode (10 samples)
+   python src/data_preprocessing/ground_truth_generation.py --samples 1000     # Full dataset (1000 samples)
+   python src/data_preprocessing/ground_truth_generation.py --samples <number> # Custom number of samples
    ```
-
-5. Output:
-   - The generated prompts are saved in a CSV file (`prompts_dataframe_test.csv` for samples, `prompts_dataframe.csv` for the full dataset) for further use in evaluating the retrieval system.
 
 ## Technology Stack
 
