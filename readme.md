@@ -56,29 +56,26 @@ To evaluate the initial retrieval performance of our system, we generate synthet
 
 2. Asynchronous Processing with **asyncio**:
    - We utilize Python's asyncio library to handle concurrent API calls efficiently.
+   - Uses **asyncio.gather()** for concurrent API calls, with a semaphore to prevent rate limiting.
    - asyncio allows us to run multiple I/O-bound tasks concurrently, significantly speeding up the data generation process.
 
-3. Implementation Details:
-   - We use **asyncio.gather()** to run multiple API calls concurrently.
-   - A semaphore is implemented to limit the number of concurrent API calls, preventing rate limiting issues and ensuring efficient use of resources.
-   - The script supports processing either a sample dataset or the full dataset:
-     - By default, it processes 10 samples and saves the result as `prompts_dataframe_test.csv`.
-     - For the full dataset (1000 samples), use the `--samples 1000` flag, which saves the result as `prompts_dataframe.csv`.
-   - You can specify any number of samples using the `--samples` argument.
+3. Implementation Details and Usage:
+   - Supports processing test or full datasets:
+     - Test mode (default): 10 samples, saves as `prompts_dataframe_test.csv`
+     - Full dataset: 1000 samples, saves as `prompts_dataframe.csv`
+   - Custom sample size possible with `--samples` argument
 
-4. Usage:
-   - For the default test dataset (10 samples):
-     ```
-     python src/data_preprocessing/ground_truth_generation.py
-     ```
-   - For the full dataset (1000 samples):
-     ```
-     python src/data_preprocessing/ground_truth_generation.py --samples 1000
-     ```
-   - For a custom number of samples:
-     ```
-     python src/data_preprocessing/ground_truth_generation.py --samples <number>
-     ```
+   Usage examples:
+   ```bash
+   # Test mode (10 samples)
+   python src/data_preprocessing/ground_truth_generation.py
+
+   # Full dataset (1000 samples)
+   python src/data_preprocessing/ground_truth_generation.py --samples 1000
+
+   # Custom number of samples
+   python src/data_preprocessing/ground_truth_generation.py --samples <number>
+   ```
 
 5. Output:
    - The generated prompts are saved in a CSV file (`prompts_dataframe_test.csv` for samples, `prompts_dataframe.csv` for the full dataset) for further use in evaluating the retrieval system.
