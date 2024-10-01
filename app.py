@@ -414,7 +414,7 @@ def main():
         
         setup_event_handlers(login_section, main_section, recipe_section, components, username, session_id)
     
-    iface.launch()
+    iface.launch(server_name="0.0.0.0", server_port=7860, share=True)
 
 
 if __name__ == "__main__":
