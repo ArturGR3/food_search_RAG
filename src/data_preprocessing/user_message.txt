@@ -1,0 +1,2 @@
+Generate 5 short, user-like prompts (up to 10 words each) 
+that someone might use to search for a recipe with the following information:

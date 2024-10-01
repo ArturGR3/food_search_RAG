@@ -4,11 +4,14 @@ from datetime import datetime
 import uuid
 import argparse
 import json
+from pathlib import Path
 
 DB_NAME = 'recipe_feedback.db'
 
 def connect_db():
-    return sqlite3.connect(DB_NAME)
+    project_root = Path(__file__).resolve().parents[2]
+    db_path = project_root / "recipe_feedback.db"
+    return sqlite3.connect(str(db_path))
 
 def reset_database():
     conn = connect_db()
@@ -160,7 +163,7 @@ def store_retrieved_recipes(query_id, recipes):
             INSERT INTO retrieved_recipes 
             (query_id, recipe_title, cosine_similarity) 
             VALUES (?, ?, ?)
-        """, (query_id, recipe['Title'], recipe['cosine_similarity']))
+        """, (query_id, recipe['Title'], recipe.get('cosine_similarity', None)))
     conn.commit()
     conn.close()
 
@@ -206,14 +209,24 @@ def save_feedback(username, recipe_title, feedback):
 
 def store_query_adjustment(session_id, original_query, adjusted_query, excluded_ingredients):
     conn = connect_db()
+    print(f"Connected to database: {conn.execute('PRAGMA database_list').fetchone()[2]}")
+    
     c = conn.cursor()
-    c.execute("""
-        INSERT INTO query_adjustments 
-        (session_id, original_query, adjusted_query, excluded_ingredients)
-        VALUES (?, ?, ?, ?)
-    """, (session_id, original_query, adjusted_query, json.dumps(excluded_ingredients)))
-    conn.commit()
-    conn.close()
+    try:
+        c.execute("""
+            INSERT INTO query_adjustments 
+            (session_id, original_query, adjusted_query, excluded_ingredients)
+            VALUES (?, ?, ?, ?)
+        """, (session_id, original_query, adjusted_query, json.dumps(excluded_ingredients)))
+        conn.commit()
+        print("Query adjustment stored successfully")
+    except sqlite3.Error as e:
+        print(f"An error occurred: {e}")
+        print("Tables in the database:")
+        c.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        print(c.fetchall())
+    finally:
+        conn.close()
 
 def show_recent_query_adjustments(limit=10):
     conn = connect_db()
@@ -367,7 +380,11 @@ if __name__ == "__main__":
 
     print("\nUser clicks:")
     print(get_user_clicks())
-
+    
+    print("Tables available:")
+    conn = connect_db()
+    print(pd.read_sql_query("SELECT name FROM sqlite_master WHERE type='table'", conn))
+    conn.close()
     # Example of retrieving query process details
     # Replace 1 with an actual query_id from your database
     process_details = get_query_process_details(1)

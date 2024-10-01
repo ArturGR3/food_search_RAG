@@ -34,7 +34,6 @@ def preprocess_data(df):
         f"Instructions: {row['Instructions']}"
     ), axis=1)
     return df
-
 def main():
     df = load_data()
     if df is not None:

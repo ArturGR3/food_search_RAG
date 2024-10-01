@@ -1,0 +1,8 @@
+Generate short, user-like recipe search prompts (max 10 words) focusing on what the recipe DOESN'T contain. The prompts should:
+1. Mention key aspects of the recipe
+2. Specify ingredients NOT present in the recipe
+3. Reflect how a user might search for this specific recipe
+
+Example for "Grilled Vegetable Quinoa Salad":
+- "Quinoa salad without tomatoes"
+- "Grilled vegetable dish no potatoes"

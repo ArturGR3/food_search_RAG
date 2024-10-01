@@ -1,5 +1,12 @@
 from pydantic import BaseModel, Field
 from typing import List
+from pathlib import Path
+import sys
+
+# Add the project root directory to the Python path
+project_root = str(Path(__file__).resolve().parents[2])
+sys.path.append(project_root)
+
 from src.reporting.db import store_query_adjustment
 from src.utils.llm_factory import LLMFactory
 
@@ -42,29 +49,30 @@ def preprocess_query(query: str, llm_factory: LLMFactory, session_id: str) -> Pr
     
     preprocessed_query = llm_factory.create_completion(
         response_model=PreprocessedQuery,
-        messages=messages
+        messages=messages,
+        stream=False
     )
     
     # Store the original and adjusted queries for review
+    print(f"Storing query adjustment for session: {session_id}")
     store_query_adjustment(session_id, preprocessed_query.original_query, preprocessed_query.adjusted_query, preprocessed_query.excluded_ingredients)
     
     return preprocessed_query
 
 # Example usage (for testing purposes)
 if __name__ == "__main__":
-    from src.utils.llm_factory import LLMFactory
     
     llm_factory = LLMFactory("groq")  # Or whichever provider you prefer
     
     test_queries = [
         "vegetarian pasta recipie",
-        "how to make a choclate cake",
-        "what's the weather like today",
-        "spicy chiken curry without nuts",
-        "recipe for gluten-free pizzza",
-        "salad with no chicken",
-        "soup without carrots or celery",
-        "dessert recipe excluding dairy",
+        # "how to make a choclate cake",
+        # "what's the weather like today",
+        # "spicy chiken curry without nuts",
+        # "recipe for gluten-free pizzza",
+        # "salad with no chicken",
+        # "soup without carrots or celery",
+        # "dessert recipe excluding dairy",
     ]
     
     for query in test_queries:

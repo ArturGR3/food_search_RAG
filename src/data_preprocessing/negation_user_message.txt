@@ -1,0 +1,4 @@
+Generate 5 search prompts for this recipe, focusing on what it doesn't contain:
+
+[Recipe Name]
+Ingredients: [List of ingredients]

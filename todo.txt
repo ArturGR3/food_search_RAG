@@ -1,0 +1,11 @@
+- move the prompts to a separate file with jinja templating
+- think about scoring mechanism 
+- test the negation prompts strategy  
+ - consider creating a user prompts with negations for testing 
+ - query preprocessing to avoid negation and then using LLM to preprocess the query  
+ - check if hybrid search does better with the negation strategy 
+ - check if fine-tuning the embeddings with the negation prompts helps
+- consider to remove restrictions on the number of recipes returned, as long as the pass the relevance threshold
+- fine tune prompt for relevance assessment (it seems it does not work well)    
+- add a functionality that when the user hit enter while entering the user name it will start the session without the need to click on the login button
+- make sure to move images `` mv data/Food\ Images/Food\ Images/* data/Food_Images/``

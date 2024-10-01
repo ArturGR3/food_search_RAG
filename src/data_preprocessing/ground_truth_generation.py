@@ -36,24 +36,24 @@ class RecipePrompt(BaseModel):
     Title: str = Field(..., description="The title of the recipe")
     prompts: List[str] = Field(..., description="A list of 5 short, user-like prompts (up to 10 words each) for searching a recipe")
 
-# Define system and user messages for the LLM
-SYSTEM_MESSAGE = """
-You are an AI assistant that generates short, user-like prompts for recipe searches.
-Each prompt should be up to 5 words long, reflecting how a user might search for this recipe. 
-Focus on key ingredients, cooking methods, or dish types. Make the prompts diverse and natural-sounding.
-""".strip()
+# Load system and user messages from separate files
+def load_message_from_file(filename):
+    file_path = Path(__file__).parent / filename
+    with open(file_path, 'r') as file:
+        return file.read().strip()
 
-USER_MESSAGE = """
-Generate 5 short, user-like prompts (up to 10 words each) 
-that someone might use to search for a recipe with the following information:
-""".strip()
+SYSTEM_MESSAGE = load_message_from_file('system_message.txt')
+USER_MESSAGE = load_message_from_file('user_message.txt')
+NEGATION_SYSTEM_MESSAGE = load_message_from_file('negation_system_message.txt')
+NEGATION_USER_MESSAGE = load_message_from_file('negation_user_message.txt')
 
-async def generate_prompts(recipe_text: str) -> RecipePrompt:
+async def generate_prompts(recipe_text: str, negation: bool = False) -> RecipePrompt:
     """
     Generate short, user-like prompts for a given recipe using OpenAI.
 
     Args:
         recipe_text (str): The recipe information to generate prompts for.
+        negation (bool): Whether to generate negation prompts.
 
     Returns:
         RecipePrompt: A RecipePrompt object containing the generated prompts.
@@ -61,10 +61,13 @@ async def generate_prompts(recipe_text: str) -> RecipePrompt:
     max_retries = 2
     for attempt in range(max_retries):
         try:
+            system_msg = NEGATION_SYSTEM_MESSAGE if negation else SYSTEM_MESSAGE
+            user_msg = NEGATION_USER_MESSAGE if negation else USER_MESSAGE
+            
             response = await async_llm_client.create_completion(
                 messages=[
-                    {"role": "system", "content": SYSTEM_MESSAGE},
-                    {"role": "user", "content": f"{USER_MESSAGE} {recipe_text}"}
+                    {"role": "system", "content": system_msg},
+                    {"role": "user", "content": f"{user_msg} {recipe_text}"}
                 ],
                 response_model=RecipePrompt,
             )
@@ -77,7 +80,7 @@ async def generate_prompts(recipe_text: str) -> RecipePrompt:
                 print(f"Failed to generate prompts after {max_retries} attempts: {e}")
                 return None
     
-async def generate_and_save_prompts(semaphore: int, data_path: str, output_csv_path: str, num_recipes: int = 1000):
+async def generate_and_save_prompts(semaphore: int, data_path: str, output_csv_path: str, num_recipes: int = 1000, negation: bool = False):
     """
     Generate and save prompts for a given number of recipes.
 
@@ -86,12 +89,13 @@ async def generate_and_save_prompts(semaphore: int, data_path: str, output_csv_p
         data_path (str): Path to the input CSV file containing recipe data.
         output_csv_path (str): Path to save the output CSV file with generated prompts.
         num_recipes (int, optional): Number of recipes to process. Defaults to 1000.
+        negation (bool, optional): Whether to generate negation prompts. Defaults to False.
     """
     sem = asyncio.Semaphore(semaphore)
 
     async def rate_limited_generate_prompts(text: str) -> RecipePrompt:
         async with sem:
-            return await generate_prompts(text)
+            return await generate_prompts(text, negation)
     
     df = pd.read_csv(data_path)
     selected_df = df.sample(n=num_recipes, random_state=42)
@@ -110,20 +114,32 @@ async def generate_and_save_prompts(semaphore: int, data_path: str, output_csv_p
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate recipe prompts")
     parser.add_argument("--samples", type=int, default=10, help="Number of samples to process (default: 10, use 1000 for full dataset)")
+    parser.add_argument("--negation", action="store_true", help="Generate negation prompts")
     args = parser.parse_args()
 
     semaphore = 4
     
     is_full_dataset = args.samples == 1000
     output_filename = "prompts_dataframe.csv" if is_full_dataset else "prompts_dataframe_test.csv"
+    if args.negation:
+        output_filename = f"negation_{output_filename}"
     
     start_time = time.time()
     asyncio.run(generate_and_save_prompts(
         semaphore,
         f'{project_root}/data/recipes.csv', 
         f'{project_root}/data/{output_filename}',
-        num_recipes=args.samples
+        num_recipes=args.samples,
+        negation=args.negation
     ))
     end_time = time.time()
-    print(f"Semaphore {semaphore}: Time taken: {end_time - start_time} seconds")
+    print(f"Semaphore {semaphore}: Time taken: {(end_time - start_time):.2f} seconds")
 
+    # Print the first 10 prompts
+    import pandas as pd 
+    df = pd.read_csv(f'/home/artur/github/personal/food_search_RAG/data/negation_prompts_dataframe_test.csv')
+
+    for title, prompt in df[['Title', 'prompts']].values:
+        print(title)
+        print(prompt)
+        print('-'*100)

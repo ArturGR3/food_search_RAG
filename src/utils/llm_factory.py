@@ -45,6 +45,7 @@ class LLMFactory:
             "max_tokens": kwargs.get("max_tokens", self.settings.max_tokens),
             "response_model": response_model,
             "messages": messages,
+            "stream": kwargs.get("stream", False),  # Add streaming option, default to False    
         }
         return self.client.chat.completions.create(**completion_params)
 
@@ -73,9 +74,10 @@ class AsyncLLMFactory:
         completion_params = {
             "model": kwargs.get("model", self.settings.default_model),
             "temperature": kwargs.get("temperature", self.settings.temperature),
-                "max_retries": kwargs.get("max_retries", self.settings.max_retries),
-                "max_tokens": kwargs.get("max_tokens", self.settings.max_tokens),
-                "response_model": response_model,
-                "messages": messages,
+            "max_retries": kwargs.get("max_retries", self.settings.max_retries),
+            "max_tokens": kwargs.get("max_tokens", self.settings.max_tokens),
+            "response_model": response_model,
+            "messages": messages,
+            "stream": kwargs.get("stream", False),  # Add streaming option, default to False
         }
         return await self.client.chat.completions.create(**completion_params)
