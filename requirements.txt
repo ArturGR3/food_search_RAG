@@ -11,3 +11,4 @@ instructor
 pydantic
 pydantic-settings
 python-dotenv
+kaggle 
