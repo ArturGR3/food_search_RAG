@@ -25,6 +25,16 @@ graph LR
 ```
 This diagram illustrates the flow of our recipe recommendation system, from user query to final recipe suggestions.
 
+## Demo Video
+
+Check out our demo video to see the Recipe Recommendation System in action:
+
+[Watch the Demo Video](./food_recipe_video_edit2.mp4)
+
+This video showcases the key features of our system, including:
+- How to build a docker container using make file 
+- The user interface and interaction
+
 ## Table of Contents
 
 ### Core Features
