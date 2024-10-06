@@ -1,6 +1,6 @@
 # Recipe Recommendation System
 
-This project implements a recipe recommendation system that helps users find recipes based on their queries. The system utilizes RAG (Retrieval-Augmented Generation) technique where it first adjusts user queries, retrieves relevant recipes from LanceDB (multi-modal database) using FTS (Full-Text Search), then sorts relevant recipes based on relevance scores using an LLM as a judge, and finally returns only highly relevant recipes to the user. By combining advanced search capabilities with a user-friendly interface, this tool aims to simplify the process of discovering new recipes and meal ideas.
+This project implements a food recipe recommendation system that helps users find recipes based on their queries. The system utilizes RAG (Retrieval-Augmented Generation) technique where it first adjusts user queries, retrieves relevant recipes from LanceDB (multi-modal database) using FTS (Full-Text Search), then sorts relevant recipes based on relevance scores using an LLM as a judge, and finally returns only highly relevant recipes to the user. By combining advanced search capabilities with a user-friendly interface, this tool aims to simplify the process of discovering new recipes and meal ideas.
 
 ```mermaid
 %%{init: {'theme': 'dark', 'themeVariables': { 'fontSize': '16px', 'fontFamily': 'monospace'}}}%%
@@ -33,7 +33,7 @@ Check out our demo video to see the Recipe Recommendation System in action:
 
 This video showcases the key features of our system, including:
 - How to build a docker container using make file 
-- The user interface and interaction
+- The user interface and interactions with the system
 
 ## Table of Contents
 
@@ -47,12 +47,13 @@ This video showcases the key features of our system, including:
 7. [Data Collection for Monitoring](#7-data-collection) - All steps from user query to user clicks are logged into SQLite database
 8. [Monitoring](#8-monitoring) - Python script creates a simple one-page summary of results
 9. [Reproducibility](#9-reproducibility) - Docker file containerizes the application; Make file runs the application
+10. [Potential Improvements](#10-potential-improvements) - Potential improvements to the system
 
 ### Additional Features
-10. [Asyncio](#10-asyncio) - Handles concurrent API calls, especially when generating synthetic data
-11. [LLM Factory](#11-llm-factory) - Creates LLM client with different APIs (inspired by [this YouTube video](https://www.youtube.com/watch?v=p6mkittu8Zc))
-12. [Instructor Library](#12-instructor-library) - Structures output from LLM
-13. [Evaluation Criteria](#evaluation-criteria) - Defines evaluation criteria for the project
+11. [Asyncio](#10-asyncio) - Handles concurrent API calls, especially when generating synthetic data
+12. [LLM Factory](#11-llm-factory) - Creates LLM client with different APIs (inspired by [this YouTube video](https://www.youtube.com/watch?v=p6mkittu8Zc))
+13. [Instructor Library](#12-instructor-library) - Structures output from LLM
+14. [Evaluation Criteria](#evaluation-criteria) - Defines evaluation criteria for the project
 
 ### 1. Data Collection and Preprocessing
 
@@ -260,7 +261,22 @@ If you encounter any issues:
   docker logs recipe-app
   ```
 
-### 10. Asyncio
+### 10. Potential Improvements
+
+1. **Improve latency**:
+   - In the current version of the application, we have user preprocecessing, retrieval and re-ranking all in one request. I believe each of the steps has a potential to be improved in terms of latency. 
+2. **Enhanced User Interface**:
+   - The focus of the current version to have a basic interface, and having alsost no experience in building front end, I didn't want to spend too much time on it. However, having a more sophisticated interface will improve user experience.
+3. **Creating a user profile**:
+   - We save all the user interactions into SQLite database. In the future, we can incorporate user profile to provide personalized recommendations and give a user a chance to see the recipes they liked in the past.
+4. **Recipe recommendation based on 'what is in my fridge'**:
+   - We can use LLM to ask a user about the ingredients they have at hand and recommend recipes based on that. This can be a good addition to the current system.
+5. **Improve reporting**:
+   - In the current version, we use a simple one-pager to report the results. We can use more sophisticated reporting tools to provide more insights into the results.
+6. **Deploying the application**:
+   - The application is containerized using Docker and orchestrated using Makefile. This allows us to run the application locally in a container or in the cloud. We can deploy the application and ask for real user feedback.
+
+### 11. Asyncio
 During the process of generating synthetic data, we use asyncio to handle concurrent API calls. This allows us to generate data much faster than if we were to do it sequentially. Below is an example of how we use asyncio to generate data:
 
 ```python
@@ -270,14 +286,14 @@ async def generate_data(num_samples):
 ```
 As most APIs have a rate limit, we use a semaphore to prevent us from making too many requests at the same time. 
 
-### 11. LLM Factory
+### 12. LLM Factory
 Inspired by [this YouTube video](https://www.youtube.com/watch?v=p6mkittu8Zc), LLM Factory is used to create an LLM client with different APIs. This allows us to easily switch between different LLMs and different API keys. Below is an example of how we use LLM Factory to create an LLM client:
 
 ```python
 client = LLMFactory("openai")
 ```
 
-### 12. Instructor Library
+### 13. Instructor Library
 One of the main challenges of working with LLMs is that it's hard to control the output. For example, we want to ensure that the output is in a particular format, or that it contains a particular piece of information.
 
 Instructor is a library that helps with this by providing a way to structure the output from LLM. It allows us to provide a schema for the output and then use the LLM to generate the output in the correct format. The library is designed for simplicity, transparency, and control, built on top of Pydantic.
