@@ -29,7 +29,7 @@ This diagram illustrates the flow of our recipe recommendation system, from user
 
 Check out our demo video to see the Recipe Recommendation System in action:
 
-[Watch the Demo Video](./food_recipe_video_edit2.mp4)
+[Watch the Demo Video]
 
 This video showcases the key features of our system, including:
 - How to build a docker container using make file 
