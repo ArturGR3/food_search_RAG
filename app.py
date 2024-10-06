@@ -24,7 +24,8 @@ def recommend(query, session_id, llm_factory, progress=gr.Progress()):
     preprocessed_query = preprocess_query(query, llm_factory, session_id)
     
     if not preprocessed_query.is_recipe_request:
-        return [], "Sorry, your query doesn't seem to be a recipe request. Please try again with a recipe-related query."
+        yield [], "Sorry, your query doesn't seem to be a recipe request. Please try again with a recipe-related query.", gr.update(visible=False)
+        return  # Add this return statement to exit the generator
     
     # 2. Store the query and update session activity
     query_id = store_user_query(session_id, preprocessed_query.adjusted_query)
@@ -186,15 +187,15 @@ def update_recipes_and_feedback(query, session_id, progress=gr.Progress(), llm_m
     llm_factory = LLMFactory(llm_model)
     generator = recommend(query, session_id, llm_factory, progress)
     
-    recipes, adjustment_feedback, recipe_section_update = next(generator)
-    yield generate_empty_recipe_output() + [
-        recipes,
-        gr.update(visible=True, value=adjustment_feedback),
-        recipe_section_update,
-        gr.update(value="Processing...", interactive=False)  # Keep processing
-    ]
-    
     try:
+        recipes, adjustment_feedback, recipe_section_update = next(generator)
+        yield generate_empty_recipe_output() + [
+            recipes,
+            gr.update(visible=True, value=adjustment_feedback),
+            recipe_section_update,
+            gr.update(value="Processing...", interactive=False)  # Keep processing
+        ]
+        
         recipes, _, recipe_section_update = next(generator)
         if recipes:
             yield generate_recipe_output(recipes) + [
@@ -211,9 +212,11 @@ def update_recipes_and_feedback(query, session_id, progress=gr.Progress(), llm_m
                 gr.update(value="Get Recommendations", interactive=True)  # Reset button
             ]
     except StopIteration:
+        # This will catch both the case where the query is not a recipe request
+        # and any other unexpected StopIteration
         yield generate_empty_recipe_output() + [
             [],
-            gr.update(visible=True, value="An error occurred while processing your request."),
+            gr.update(visible=True, value=adjustment_feedback),
             gr.update(visible=False),
             gr.update(value="Get Recommendations", interactive=True)  # Reset button
         ]
